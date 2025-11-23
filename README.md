@@ -11,6 +11,9 @@
 
 ![AI Product FAQ](https://lh3.googleusercontent.com/d/14HvcK4fkRNtEtKOb8jdw_440RiMXb8qh)
 
+## نتیجه پرسش‌وپاسخ محصولات ووکامرس در انتهای هر محصول نمایش داده میشود.
+![AI Product FAQ result](https://lh3.googleusercontent.com/d/1dBwxR1U9ozxQN0tjs9ERhIH5aHqhY8V1)
+
 ---
 
 
