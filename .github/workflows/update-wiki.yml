@@ -1,13 +1,13 @@
-name: Publish Docs Articles To Wiki
+name: Publish WooCommerce Smart Product Q&A Docs To Wiki
 
 on:
   schedule:
-    # Sunday 21:30 UTC = Monday 01:30 Iran
+    # Sunday 21:30 UTC = Monday 01:00 Iran
     - cron: "30 21 * * 0"
   workflow_dispatch:
 
 permissions:
-  contents: write   # still needed for any local operations, but pushing to another repo requires a PAT
+  contents: write
 
 jobs:
   publish:
@@ -17,13 +17,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Clone destination Wiki (using PAT)
+      - name: Clone Wiki (with auth)
         run: |
-          # Replace GH_PAT with your secret name that contains a personal access token
-          # with write access to the target wiki repository.
-          git clone https://x-access-token:${{ secrets.GH_PAT }}@github.com/intellsoft/AI-Product-FAQ.wiki.git wiki
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/intellsoft/AI-Product-FAQ.wiki.git wiki
 
-      - name: Fetch source documentation index page
+      - name: Fetch source page
         run: |
           curl -L https://intellsoft.ir/docs/woocommerce-smart-product-qa-wordpress-plugin-guide/ -o index.html
 
@@ -36,7 +34,6 @@ jobs:
         run: |
           mkdir -p articles
           python3 - <<PYTHON
-          import requests
           from bs4 import BeautifulSoup
 
           with open("index.html", encoding="utf-8") as f:
@@ -49,6 +46,8 @@ jobs:
                   href = a.get("href")
                   title = a.get_text(strip=True)
                   if href and title:
+                      if href.startswith("/"):
+                          href = "https://intellsoft.ir" + href
                       out.write(f"{href}\t{title}\n")
           PYTHON
 
@@ -67,7 +66,6 @@ jobs:
 
             curl -L "$url" -o article.html
 
-            # Extract article content between <article> and </article>
             sed -n '/<article/,/<\/article>/p' article.html \
               | sed 's/<[^>]*>//g' > body.txt
 
@@ -79,7 +77,7 @@ jobs:
               echo "---"
               echo "🔗 **منبع اصلی مقاله:**"
               echo ""
-              echo "👉 [$url]($url?utm_source=github_wiki&utm_medium=wiki&utm_campaign=woo_smart_qa_docs)"
+              echo "👉 [$url]($url?utm_source=github_wiki&utm_medium=wiki&utm_campaign=ai_product_faq)"
             } > "$file"
 
           done < articles/list.txt
@@ -90,5 +88,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Auto publish new WooCommerce Smart Product QA documentation articles to Wiki" || exit 0
+          git commit -m "Auto publish WooCommerce Smart Product Q&A docs to Wiki" || exit 0
           git push
