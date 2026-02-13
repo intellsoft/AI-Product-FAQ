@@ -1,13 +1,9 @@
-name: Publish WooCommerce Smart Product Q&A Docs To Wiki
+name: Publish Docs to Wiki
 
 on:
   schedule:
-    # Sunday 21:30 UTC = Monday 01:00 Iran
-    - cron: "30 21 * * 0"
+    - cron: "0 */6 * * *"   # هر ۶ ساعت
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   publish:
@@ -17,76 +13,51 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Clone Wiki (with auth)
+      - name: Install dependencies
         run: |
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/intellsoft/AI-Product-FAQ.wiki.git wiki
+          sudo apt-get update
+          sudo apt-get install -y jq xmlstarlet curl
 
-      - name: Fetch source page
+      - name: Clone wiki repository
         run: |
-          curl -L https://intellsoft.ir/docs/woocommerce-smart-product-qa-wordpress-plugin-guide/ -o index.html
+          git clone https://x-access-token:${{ secrets.WIKI_TOKEN }}@github.com/intellsoft/AI-Product-FAQ.wiki.git wiki
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install beautifulsoup4 requests
-
-      - name: Extract nav-link articles using Python
+      - name: Read sitemap and filter target docs
         run: |
           mkdir -p articles
-          python3 - <<PYTHON
-          from bs4 import BeautifulSoup
 
-          with open("index.html", encoding="utf-8") as f:
-              soup = BeautifulSoup(f, "html.parser")
+          curl -s https://intellsoft.ir/post-sitemap.xml \
+          | xmlstarlet sel -t -m "//url/loc" -v . -n \
+          | grep "^https://intellsoft.ir/docs/woocommerce-smart-product-qa-wordpress-plugin-guide/" \
+          > articles/urls.txt
 
-          links = soup.find_all("a", class_="nav-link")
-
-          with open("articles/list.txt", "w", encoding="utf-8") as out:
-              for a in links:
-                  href = a.get("href")
-                  title = a.get_text(strip=True)
-                  if href and title:
-                      if href.startswith("/"):
-                          href = "https://intellsoft.ir" + href
-                      out.write(f"{href}\t{title}\n")
-          PYTHON
-
-      - name: Publish new articles to Wiki
+      - name: Fetch and publish new docs
         run: |
-          while IFS=$'\t' read -r url title; do
-            slug=$(basename "$url")
-            file="wiki/$slug.md"
+          while read -r url; do
+            slug=$(basename "$url" | sed 's/[^a-zA-Z0-9\-]/-/g')
+            file="wiki/${slug}.md"
 
             if [ -f "$file" ]; then
-              echo "Already exists: $title"
+              echo "⏭ Already exists: $slug"
               continue
             fi
 
-            echo "Publishing: $title"
+            echo "📥 Fetching $url"
 
-            curl -L "$url" -o article.html
+            content=$(curl -s "$url")
 
-            sed -n '/<article/,/<\/article>/p' article.html \
-              | sed 's/<[^>]*>//g' > body.txt
+            echo "# $(basename "$url")" > "$file"
+            echo "" >> "$file"
+            echo "$content" >> "$file"
 
-            {
-              echo "# $title"
-              echo ""
-              cat body.txt
-              echo ""
-              echo "---"
-              echo "🔗 **منبع اصلی مقاله:**"
-              echo ""
-              echo "👉 [$url]($url?utm_source=github_wiki&utm_medium=wiki&utm_campaign=ai_product_faq)"
-            } > "$file"
+            echo "✅ Published: $slug"
+          done < articles/urls.txt
 
-          done < articles/list.txt
-
-      - name: Commit and push to Wiki
+      - name: Commit and push to wiki
         run: |
           cd wiki
           git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config user.email "github-actions@github.com"
           git add .
-          git commit -m "Auto publish WooCommerce Smart Product Q&A docs to Wiki" || exit 0
+          git commit -m "Auto publish new docs from sitemap" || echo "No changes"
           git push
